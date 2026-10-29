@@ -17,9 +17,9 @@ The dissertation exposed the pipeline through Django. This project rebuilds the 
 - [x] FastAPI app split into `users` and `query` routers
 - [x] Async SQLAlchemy with SQLite (`aiosqlite`) to store users, queries and responses
 - [x] Pydantic request and response schemas with input validation
-- [ ] User creation endpoint (`POST /api/users`)
 - [ ] Run the CRAG pipeline without blocking the event loop
 - [ ] Password hashing and authentication
+- [ ] User creation endpoint (`POST /api/users`)
 - [ ] Automated tests with pytest
 - [ ] PostgreSQL with pgvector in place of Chroma
 - [ ] Docker Compose for the API, database and Ollama
