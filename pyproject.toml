@@ -1,0 +1,20 @@
+[project]
+name = "crag-fastapi"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Kuan-Yu Yu", email = "kxy500@student.bham.ac.uk" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "fastapi[standard]>=0.162.0",
+    "greenlet>=3.5.6",
+    "langchain>=1.4.7",
+    "langchain-chroma>=1.1.0",
+    "langchain-community>=0.4.2",
+    "langchain-ollama>=1.1.0",
+    "langgraph>=1.2.18",
+    "sqlalchemy>=2.1.6",
+]

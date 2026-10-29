@@ -1,0 +1,5 @@
+.venv
+*.db
+data/vector_db/
+__pycache__/
+.idea/
