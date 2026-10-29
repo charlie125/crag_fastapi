@@ -17,6 +17,7 @@ The dissertation exposed the pipeline through Django. This project rebuilds the 
 - [x] FastAPI app split into `users` and `query` routers
 - [x] Async SQLAlchemy with SQLite (`aiosqlite`) to store users, queries and responses
 - [x] Pydantic request and response schemas with input validation
+- [ ] User creation endpoint (`POST /api/users`)
 - [ ] Run the CRAG pipeline without blocking the event loop
 - [ ] Password hashing and authentication
 - [ ] Automated tests with pytest
@@ -26,7 +27,7 @@ The dissertation exposed the pipeline through Django. This project rebuilds the 
 
 ## Tech stack
 
-Python 3.12 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph · LangChain · Ollama · Chroma · uv
+Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph · LangChain · Ollama · Chroma · uv
 
 ## Project structure
 
@@ -50,14 +51,14 @@ Python 3.12 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph 
 | --- | --- | --- |
 | `POST` | `/api/query` | Run a question through the Capped CRAG pipeline and store the result |
 | `GET` | `/api/query` | List stored queries and responses |
-| `POST` | `/api/users` | Create a user |
+| `POST` | `/api/users` | Create a user *(not implemented yet)* |
 | `GET` | `/api/users` | List users |
 
 Interactive documentation is available at `/docs` once the server is running.
 
 ## Getting started
 
-**Prerequisites:** Python 3.12, [uv](https://docs.astral.sh/uv/) and [Ollama](https://ollama.com/).
+**Prerequisites:** Python 3.14, [uv](https://docs.astral.sh/uv/) and [Ollama](https://ollama.com/).
 
 ```bash
 # 1. Pull the models
