@@ -24,6 +24,6 @@ async def create_query(query: QueryCreate, db:Dbsession):
 
 @router.get("", response_model=list[QueryResponse], status_code=status.HTTP_200_OK)
 async def get_all_chat(db:Dbsession):
-    target = await db.execute(select(models.Response))
+    target = await db.execute(select(models.Response).options(models.Response.user))
     results = target.scalars().all()
     return results

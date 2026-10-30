@@ -13,7 +13,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, index=True)
     username: Mapped[str] = mapped_column(String())
     email: Mapped[str] = mapped_column(String())
-    password: Mapped[str] = mapped_column(String())
+    password_hash: Mapped[str] = mapped_column(String())
     date_created: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     queries: Mapped[list[Response]] = relationship(back_populates="user", cascade="all, delete-orphan")
