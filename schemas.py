@@ -2,8 +2,8 @@ from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from datetime import datetime
 
 class UserBase(BaseModel):
-    username: str = Field(min_length=0, max_length=100)
-    email: EmailStr = Field(min_length=0, max_length=100)
+    username: str = Field(min_length=1, max_length=100)
+    email: EmailStr = Field(min_length=1, max_length=100)
 
 class UserCreate(UserBase):
     password: str = Field(min_length=8)
