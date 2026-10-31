@@ -4,22 +4,20 @@ from sqlalchemy.orm import selectinload
 import models
 from schemas import QueryResponse, QueryCreate
 from capped_crag import capped_main
-import datetime
 import asyncio
 from auth import CurrentUser
 from database import DbSession
 
 router = APIRouter()
 
-@router.post("", response_model=QueryResponse, status_code=status.HTTP_200_OK)
+@router.post("", response_model=QueryResponse, status_code=status.HTTP_201_CREATED)
 async def create_query(query: QueryCreate, db:DbSession, current_user: CurrentUser):
 
     result = await asyncio.to_thread(capped_main, query.query)
-    new_chat = models.Response(query=query.query, response=result, date_created=datetime.datetime.now(), user_id=current_user.id, user=current_user)
+    new_chat = models.Response(query=query.query, response=result, user=current_user)
 
     db.add(new_chat)
     await db.commit()
-    await db.refresh(new_chat)
 
     return new_chat
 
