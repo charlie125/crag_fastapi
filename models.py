@@ -11,8 +11,8 @@ class User(Base):
     __tablename__ = "user"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, index=True)
-    username: Mapped[str] = mapped_column(String())
-    email: Mapped[str] = mapped_column(String())
+    username: Mapped[str] = mapped_column(String(), unique=True)
+    email: Mapped[str] = mapped_column(String(), unique=True)
     password_hash: Mapped[str] = mapped_column(String())
     date_created: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
