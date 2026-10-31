@@ -6,7 +6,8 @@ from schemas import QueryResponse, QueryCreate
 from capped_crag import capped_main
 import datetime
 import asyncio
-from router.user import CurrentUser, DbSession
+from auth import CurrentUser
+from database import DbSession
 
 router = APIRouter()
 
