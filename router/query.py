@@ -1,20 +1,20 @@
-from fastapi import status, Depends, APIRouter
+from fastapi import status, APIRouter, HTTPException
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from database import get_db
-from typing import Annotated
+from sqlalchemy.orm import selectinload
 import models
 from schemas import QueryResponse, QueryCreate
 from capped_crag import capped_main
 import datetime
+import asyncio
+from router.user import CurrentUser, DbSession
 
 router = APIRouter()
-Dbsession = Annotated[AsyncSession, Depends(get_db)]
 
 @router.post("", response_model=QueryResponse, status_code=status.HTTP_200_OK)
-async def create_query(query: QueryCreate, db:Dbsession):
-    result = capped_main(query.query)
-    new_chat = models.Response(query=query.query, response=result, date_created=datetime.datetime.now(), user_id=1)
+async def create_query(query: QueryCreate, db:DbSession, current_user: CurrentUser):
+
+    result = await asyncio.to_thread(capped_main, query.query)
+    new_chat = models.Response(query=query.query, response=result, date_created=datetime.datetime.now(), user_id=current_user.id, user=current_user)
 
     db.add(new_chat)
     await db.commit()
@@ -23,7 +23,22 @@ async def create_query(query: QueryCreate, db:Dbsession):
     return new_chat
 
 @router.get("", response_model=list[QueryResponse], status_code=status.HTTP_200_OK)
-async def get_all_chat(db:Dbsession):
-    target = await db.execute(select(models.Response).options(models.Response.user))
-    results = target.scalars().all()
-    return results
+async def get_all_chat(db:DbSession):
+    result = await db.execute(select(models.Response).options(selectinload(models.Response.user)))
+    responses = result.scalars().all()
+    return responses
+
+@router.delete("/{query_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_query(db: DbSession, query_id: int, current_user: CurrentUser):
+
+    result = await db.execute(select(models.Response).where(models.Response.id == query_id, models.Response.user_id == current_user.id))
+    target_query = result.scalars().first()
+
+    if not target_query:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Query not found"
+        )
+
+    await db.delete(target_query)
+    await db.commit()
