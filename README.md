@@ -17,9 +17,10 @@ The dissertation exposed the pipeline through Django. This project rebuilds the 
 - [x] FastAPI app split into `users` and `query` routers
 - [x] Async SQLAlchemy with SQLite (`aiosqlite`) to store users, queries and responses
 - [x] Pydantic request and response schemas with input validation
-- [x] Password hashing and authentication
+- [x] Password hashing (Argon2) and JWT authentication
 - [x] User creation endpoint (`POST /api/users`)
-- [ ] Run the CRAG pipeline without blocking the event loop
+- [x] Users can only view and delete their own queries
+- [x] Run the CRAG pipeline in a worker thread so it does not block the event loop
 - [ ] Automated tests with pytest
 - [ ] PostgreSQL with pgvector in place of Chroma
 - [ ] Docker Compose for the API, database and Ollama
@@ -35,8 +36,10 @@ Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph 
 .
 ├── main.py           # FastAPI app, lifespan (creates tables), router registration
 ├── router/
-│   ├── query.py      # POST/GET /api/query
-│   └── user.py       # POST/GET /api/users
+│   ├── query.py      # /api/query: run, list and delete queries
+│   └── user.py       # /api/users: sign up, log in, list users, query history
+├── auth.py           # Password hashing, JWT creation/verification, current-user dependency
+├── config.py         # Settings loaded from environment variables / .env
 ├── schemas.py        # Pydantic request/response models
 ├── models.py         # SQLAlchemy models: User, Response
 ├── database.py       # Async engine and session dependency
@@ -47,14 +50,17 @@ Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph 
 
 ## API
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `POST` | `/api/query` | Run a question through the Capped CRAG pipeline and store the result |
-| `GET` | `/api/query` | List stored queries and responses |
-| `POST` | `/api/users` | Create a user *(not implemented yet)* |
-| `GET` | `/api/users` | List users |
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/users` | – | Create a user (`201`); username and email must be unique, case-insensitive |
+| `POST` | `/api/users/token` | – | Log in with email and password (OAuth2 form), returns a bearer token |
+| `GET` | `/api/users` | – | List users |
+| `GET` | `/api/users/{username}/histories` | Bearer | List the current user's queries (`403` for another username) |
+| `POST` | `/api/query` | Bearer | Run a question through the Capped CRAG pipeline and store the result (`201`) |
+| `GET` | `/api/query` | – | List stored queries and responses |
+| `DELETE` | `/api/query/{query_id}` | Bearer | Delete one of the current user's queries (`204`, `404` if not found or not owned) |
 
-Interactive documentation is available at `/docs` once the server is running.
+Interactive documentation is available at `/docs` once the server is running. Use the **Authorize** button there to log in; the email goes in the `username` field.
 
 ## Getting started
 
@@ -68,7 +74,10 @@ ollama pull nomic-embed-text
 # 2. Install dependencies
 uv sync
 
-# 3. Start the development server
+# 3. Create a .env file with a secret key for signing tokens
+echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
+
+# 4. Start the development server
 uv run fastapi dev main.py
 ```
 
@@ -77,13 +86,29 @@ Open <http://127.0.0.1:8000/docs> to try the endpoints. On the first query, the 
 ### Example
 
 ```bash
+# Create a user
+curl -X POST http://127.0.0.1:8000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "email": "alice@example.com", "password": "change-me-123"}'
+
+# Log in (the OAuth2 form field is called "username", but it takes the email)
+TOKEN=$(curl -s -X POST http://127.0.0.1:8000/api/users/token \
+  -d "username=alice@example.com&password=change-me-123" \
+  | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+
+# Ask a question
 curl -X POST http://127.0.0.1:8000/api/query \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query": "Within how many hours must a data breach be reported?"}'
 ```
+
+Tokens expire after 30 minutes by default (`ACCESS_TOKEN_EXPIRED_MINUTES`).
 
 ## Notes
 
 - The dissertation experiments used `llama3.1` (8B). This repository defaults to the smaller `llama3.2:1b` so it runs on lighter machines; change the model in `capped_crag.py`.
 - The corpus is a fully synthetic compliance policy. No real corporate or personal data is included.
+- `GET /api/users` and `GET /api/query` are still public and expose every user's email and queries. They will be restricted before any deployment.
+- Tables are created at startup with `create_all`, which does not alter existing tables. There are no migrations yet, so after a model change, delete `crag.db` and restart.
 - Latency and quality figures from the dissertation do not carry over to this version and will be re-measured once the service layer is complete.
