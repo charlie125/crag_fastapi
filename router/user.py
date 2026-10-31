@@ -69,12 +69,12 @@ async def get_all_user(db:DbSession):
 
 
 @router.get("/{username}/histories", response_model=list[QueryResponse])
-async def histories(db: DbSession, user: CurrentUser, username: str):
+async def get_user_histories(db: DbSession, user: CurrentUser, username: str):
 
     if user.username.lower() != username.lower():
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User does not match"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view your own histories"
         )
 
     result = await db.execute(select(models.Response).options(selectinload(models.Response.user)).where(models.Response.user_id == user.id))
