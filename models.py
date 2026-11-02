@@ -16,10 +16,10 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String())
     date_created: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
-    queries: Mapped[list[Response]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    queries: Mapped[list[Query]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
-class Response(Base):
-    __tablename__ = "response"
+class Query(Base):
+    __tablename__ = "query"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, index=True)
     query: Mapped[str] = mapped_column(Text())

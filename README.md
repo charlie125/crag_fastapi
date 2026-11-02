@@ -41,7 +41,7 @@ Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph 
 ├── auth.py           # Password hashing, JWT creation/verification, current-user dependency
 ├── config.py         # Settings loaded from environment variables / .env
 ├── schemas.py        # Pydantic request/response models
-├── models.py         # SQLAlchemy models: User, Response
+├── models.py         # SQLAlchemy models: User, Query
 ├── database.py       # Async engine and session dependency
 ├── capped_crag.py    # LangGraph Capped Agentic CRAG pipeline
 ├── vector_store.py   # PDF loading, chunking, Chroma vector store and search

@@ -61,7 +61,7 @@ async def login(db: DbSession, form_data: Form):
     return Token(access_token=access_token, token_type="bearer")
 
 @router.get("", response_model=list[UserResponse], status_code=status.HTTP_200_OK)
-async def get_all_user(db:DbSession):
+async def get_all_users(db:DbSession):
     result = await db.execute(select(models.User))
     users = result.scalars().all()
 
@@ -77,6 +77,6 @@ async def get_user_queries(db: DbSession, user: CurrentUser, username: str):
             detail="You can only view your own queries"
         )
 
-    result = await db.execute(select(models.Response).options(selectinload(models.Response.user)).where(models.Response.user_id == user.id))
-    target_responses = result.scalars().all()
-    return target_responses
+    result = await db.execute(select(models.Query).options(selectinload(models.Query.user)).where(models.Query.user_id == user.id))
+    target_queries = result.scalars().all()
+    return target_queries

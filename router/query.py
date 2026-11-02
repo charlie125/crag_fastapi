@@ -13,24 +13,24 @@ router = APIRouter()
 @router.post("", response_model=QueryResponse, status_code=status.HTTP_201_CREATED)
 async def create_query(query: QueryCreate, db:DbSession, current_user: CurrentUser):
 
-    result = await asyncio.to_thread(capped_main, query.query)
-    new_chat = models.Response(query=query.query, response=result, user=current_user)
+    response = await asyncio.to_thread(capped_main, query.query)
+    new_query = models.Query(query=query.query, response=response, user=current_user)
 
-    db.add(new_chat)
+    db.add(new_query)
     await db.commit()
 
-    return new_chat
+    return new_query
 
 @router.get("", response_model=list[QueryResponse], status_code=status.HTTP_200_OK)
-async def get_all_chat(db:DbSession):
-    result = await db.execute(select(models.Response).options(selectinload(models.Response.user)))
-    responses = result.scalars().all()
-    return responses
+async def get_all_queries(db:DbSession):
+    result = await db.execute(select(models.Query).options(selectinload(models.Query.user)))
+    queries = result.scalars().all()
+    return queries
 
 @router.delete("/{query_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_query(db: DbSession, query_id: int, current_user: CurrentUser):
 
-    result = await db.execute(select(models.Response).where(models.Response.id == query_id, models.Response.user_id == current_user.id))
+    result = await db.execute(select(models.Query).where(models.Query.id == query_id, models.Query.user_id == current_user.id))
     target_query = result.scalars().first()
 
     if not target_query:
