@@ -20,13 +20,13 @@ async def create_user(user: UserCreate, db: DbSession):
     existing_user = result.scalars().first()
 
     if existing_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
 
     result = await db.execute(select(models.User).where(func.lower(models.User.email) == user.email.lower()))
     existing_email = result.scalars().first()
 
     if existing_email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
 
     new_user = models.User(
         username=user.username,

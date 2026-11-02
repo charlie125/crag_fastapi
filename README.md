@@ -52,7 +52,7 @@ Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph 
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| `POST` | `/api/users` | – | Create a user (`201`); username and email must be unique, case-insensitive |
+| `POST` | `/api/users` | – | Create a user (`201`); username and email must be unique, case-insensitive (`409` if taken) |
 | `POST` | `/api/users/token` | – | Log in with email and password (OAuth2 form), returns a bearer token |
 | `GET` | `/api/users` | – | List users |
 | `GET` | `/api/users/{username}/queries` | Bearer | List the current user's queries (`403` for another username) |
