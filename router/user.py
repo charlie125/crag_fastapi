@@ -68,13 +68,13 @@ async def get_all_user(db:DbSession):
     return users
 
 
-@router.get("/{username}/histories", response_model=list[QueryResponse])
-async def get_user_histories(db: DbSession, user: CurrentUser, username: str):
+@router.get("/{username}/queries", response_model=list[QueryResponse])
+async def get_user_queries(db: DbSession, user: CurrentUser, username: str):
 
     if user.username.lower() != username.lower():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view your own histories"
+            detail="You can only view your own queries"
         )
 
     result = await db.execute(select(models.Response).options(selectinload(models.Response.user)).where(models.Response.user_id == user.id))

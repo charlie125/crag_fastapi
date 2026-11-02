@@ -36,8 +36,8 @@ Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph 
 .
 ├── main.py           # FastAPI app, lifespan (creates tables), router registration
 ├── router/
-│   ├── query.py      # /api/query: run, list and delete queries
-│   └── user.py       # /api/users: sign up, log in, list users, query history
+│   ├── query.py      # /api/queries: run, list and delete queries
+│   └── user.py       # /api/users: sign up, log in, list users, a user's own queries
 ├── auth.py           # Password hashing, JWT creation/verification, current-user dependency
 ├── config.py         # Settings loaded from environment variables / .env
 ├── schemas.py        # Pydantic request/response models
@@ -55,10 +55,10 @@ Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph 
 | `POST` | `/api/users` | – | Create a user (`201`); username and email must be unique, case-insensitive |
 | `POST` | `/api/users/token` | – | Log in with email and password (OAuth2 form), returns a bearer token |
 | `GET` | `/api/users` | – | List users |
-| `GET` | `/api/users/{username}/histories` | Bearer | List the current user's queries (`403` for another username) |
-| `POST` | `/api/query` | Bearer | Run a question through the Capped CRAG pipeline and store the result (`201`) |
-| `GET` | `/api/query` | – | List stored queries and responses |
-| `DELETE` | `/api/query/{query_id}` | Bearer | Delete one of the current user's queries (`204`, `404` if not found or not owned) |
+| `GET` | `/api/users/{username}/queries` | Bearer | List the current user's queries (`403` for another username) |
+| `POST` | `/api/queries` | Bearer | Run a question through the Capped CRAG pipeline and store the result (`201`) |
+| `GET` | `/api/queries` | – | List stored queries and responses |
+| `DELETE` | `/api/queries/{query_id}` | Bearer | Delete one of the current user's queries (`204`, `404` if not found or not owned) |
 
 Interactive documentation is available at `/docs` once the server is running. Use the **Authorize** button there to log in; the email goes in the `username` field.
 
@@ -97,7 +97,7 @@ TOKEN=$(curl -s -X POST http://127.0.0.1:8000/api/users/token \
   | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
 
 # Ask a question
-curl -X POST http://127.0.0.1:8000/api/query \
+curl -X POST http://127.0.0.1:8000/api/queries \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query": "Within how many hours must a data breach be reported?"}'
@@ -109,6 +109,6 @@ Tokens expire after 30 minutes by default (`ACCESS_TOKEN_EXPIRED_MINUTES`).
 
 - The dissertation experiments used `llama3.1` (8B). This repository defaults to the smaller `llama3.2:1b` so it runs on lighter machines; change the model in `capped_crag.py`.
 - The corpus is a fully synthetic compliance policy. No real corporate or personal data is included.
-- `GET /api/users` and `GET /api/query` are still public and expose every user's email and queries. They will be restricted before any deployment.
+- `GET /api/users` and `GET /api/queries` are still public and expose every user's email and queries. They will be restricted before any deployment.
 - Tables are created at startup with `create_all`, which does not alter existing tables. There are no migrations yet, so after a model change, delete `crag.db` and restart.
 - Latency and quality figures from the dissertation do not carry over to this version and will be re-measured once the service layer is complete.
