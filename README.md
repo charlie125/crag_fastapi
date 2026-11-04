@@ -12,6 +12,12 @@ The dissertation ([capped-agentic-crag](https://github.com/charlie125/capped-age
 
 The dissertation exposed the pipeline through Django. This project rebuilds the service layer as an API with FastAPI.
 
+## Architecture
+
+![Capped Agentic CRAG architecture](https://github.com/user-attachments/assets/775ba550-2207-4ca2-8138-4ff39a660608)
+
+`Count Check` is the iteration cap: once `rewrite_counts` reaches K = 2, it routes to `give_up_msg`, which returns an explicit refusal instead of looping back through `Rewrite`. The `LLM` step stands for whichever node actually produces the reply — `generate_answer` after a successful retrieval, or `Query_or_Response`'s own output when it answers without calling the retrieval tool.
+
 ## Status
 
 - [x] FastAPI app split into `users` and `query` routers
