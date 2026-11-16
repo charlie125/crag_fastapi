@@ -4,14 +4,15 @@ import os
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 
-
 # Ollama Embedding model
 from langchain_ollama import OllamaEmbeddings
 
+from models import VectorDB
+from pathlib import Path
 
-# Vector Database
-from langchain_chroma import Chroma
-
+from sqlalchemy import create_engine, delete, select
+from sqlalchemy.orm import Session, sessionmaker
+from config import setting
 
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
@@ -25,53 +26,57 @@ PERSIST_DIR = os.path.join(DATA_ROOT, "vector_db")
 FILE_LOCATION = os.path.join(
     DATA_ROOT, "Corporate Data Protection and GDPR Compliance Policy.pdf")
 
+engine = create_engine(setting.database_url)
+SessionLocal = sessionmaker(engine, class_=Session, expire_on_commit=False)
 
-# checking local vector database exist
 def set_up_vector_db():
+    file_location = FILE_LOCATION
+    loader = PyPDFLoader(file_location)
+    pages = loader.load()
 
-    if os.path.exists(PERSIST_DIR) and os.listdir(PERSIST_DIR):
-        vector_database = Chroma(
-            persist_directory=PERSIST_DIR,
-            embedding_function=embeddings
-        )
-    else:
-        file_location = FILE_LOCATION
-        loader = PyPDFLoader(file_location)
-        pages = loader.load()
-
-        splitter = RecursiveCharacterTextSplitter(
+    splitter = RecursiveCharacterTextSplitter(
             chunk_size=1200,
             chunk_overlap=200,
             separators=["\n\n", "\n", " "]
         )
 
-        chunks = splitter.split_documents(pages)
+    chunks = splitter.split_documents(pages)
 
-        vector_database = Chroma.from_documents(documents=chunks,
-                                                embedding=embeddings,
-                                                persist_directory=PERSIST_DIR)
-        print("Vector Database created!")
-    return vector_database
+    chunks_list = [chunk.page_content for chunk in chunks]
+    emb_text = embeddings.embed_documents(chunks_list)
 
+    with SessionLocal() as session:
+        p = Path(str(FILE_LOCATION))
+        session.execute(delete(VectorDB).where(VectorDB.source == p.stem))
 
-def format_data(plain_data):
+        for emb, chk in zip(emb_text, chunks):
+            new_vector = VectorDB(content=chk.page_content, source=p.stem, page=int(chk.metadata["page"]) + 1, embedding=emb)
+
+            session.add(new_vector)
+        session.commit()
+
+    return chunks
+
+def format_data(obj):
     formatted_chunks = []
 
-    for doc, _ in plain_data:
-        page_label = doc.metadata.get("page", "N/A")
-        human_readable_page = page_label + 1
-        clean_text = doc.page_content.replace("-\n", "").replace("\n", " ")
+    for doc in obj:
+        clean_text = doc.content.replace("-\n", "").replace("\n", " ")
         formatted_chunks.append(
-            f"[Source: 'Corporate Data Protection and GDPR Compliance Policy', Page: {human_readable_page}]: {clean_text}")
+            f"[Source: '{doc.source}', Page: {doc.page}]: {clean_text}")
 
     text_prompt_string = "\n\n".join(formatted_chunks)
 
     return text_prompt_string
 
-
 def vector_db_search(user_query):
-    vector_database = set_up_vector_db()
-    docs_and_scores = vector_database.similarity_search_with_score(
-        user_query, k=3)
-    vector_db_results = format_data(docs_and_scores)
-    return vector_db_results
+    query_embedding = embeddings.embed_query(user_query)
+    with SessionLocal() as session:
+        stmt = select(VectorDB).order_by(VectorDB.embedding.cosine_distance(query_embedding)).limit(3)
+        retrieved_context = format_data(session.scalars(stmt).all())
+
+    return retrieved_context
+
+if __name__ == "__main__":
+    chunks = set_up_vector_db()
+    print(f"Ingested {len(chunks)} chunks")
