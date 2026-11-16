@@ -2,7 +2,7 @@
 
 A REST API for the **Capped Agentic CRAG** pipeline from my MSc dissertation, so that a fully local RAG system can be called by other services instead of only through a demo web page.
 
-Everything runs on local hardware: the LLM and embedding model are served by Ollama, the vector store is Chroma, and users and queries are stored in PostgreSQL. No document or query is sent to a cloud API.
+Everything runs on local hardware: the LLM and embedding model are served by Ollama, and the document chunks with their embeddings, users and queries are all stored in PostgreSQL with pgvector. No document or query is sent to a cloud API.
 
 > **Work in progress.** See [Status](#status) for what is done and what is planned.
 
@@ -30,13 +30,13 @@ The dissertation exposed the pipeline through Django. This project rebuilds the 
 - [x] Users can only view and delete their own queries
 - [x] Run the CRAG pipeline in a worker thread so it does not block the event loop
 - [ ] Automated tests with pytest
-- [ ] pgvector in place of Chroma
+- [x] pgvector in place of Chroma: chunks and embeddings live in PostgreSQL, searched by cosine distance
 - [ ] Run the API and Ollama in Docker Compose as well
 - [ ] CI with GitHub Actions
 
 ## Tech stack
 
-Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · PostgreSQL · Alembic · Docker Compose · LangGraph · LangChain · Ollama · Chroma · uv
+Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · PostgreSQL · Alembic · Docker Compose · LangGraph · LangChain · Ollama · pgvector · uv
 
 ## Project structure
 
@@ -53,9 +53,9 @@ Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · PostgreSQL · Alembi
 ├── database.py       # Async engine and session dependency
 ├── alembic/          # Migration environment and versioned migrations
 ├── alembic.ini       # Alembic configuration (the database URL comes from config.py)
-├── docker-compose.yaml  # PostgreSQL for local development
+├── docker-compose.yaml  # PostgreSQL with pgvector for local development
 ├── capped_crag.py    # LangGraph Capped Agentic CRAG pipeline
-├── vector_store.py   # PDF loading, chunking, Chroma vector store and search
+├── vector_store.py   # PDF ingestion (split, embed, store) and pgvector similarity search
 └── data/             # Synthetic GDPR compliance policy used as the corpus
 ```
 
@@ -97,16 +97,19 @@ EOF
 # 4. Start PostgreSQL
 docker compose up -d
 
-# 5. Create the tables
+# 5. Create the tables (also enables the vector extension)
 uv run alembic upgrade head
 
-# 6. Start the development server
+# 6. Load the document into the vector store (Ollama must be running)
+uv run python vector_store.py
+
+# 7. Start the development server
 uv run fastapi dev main.py
 ```
 
 PostgreSQL listens on port `5433` on the host so it does not clash with a local installation. `POSTGRES_HOST` defaults to `localhost`.
 
-Open <http://127.0.0.1:8000/docs> to try the endpoints. On the first query, the vector store is built from the PDF in `data/` and saved to `data/vector_db/`.
+Open <http://127.0.0.1:8000/docs> to try the endpoints. Step 6 only needs to run once per database. Run it again after changing the PDF, the chunk settings or the embedding model; it replaces that document's chunks, so re-running it does not create duplicates.
 
 ### Database migrations
 
