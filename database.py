@@ -2,11 +2,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase
 from fastapi import Depends
 from typing import Annotated
+from config import setting
 
-
-PATH = "sqlite+aiosqlite:///./crag.db"
-
-engine = create_async_engine(PATH, connect_args={"check_same_thread":False})
+engine = create_async_engine(setting.database_url)
 
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
