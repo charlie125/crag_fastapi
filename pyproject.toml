@@ -17,6 +17,7 @@ dependencies = [
     "langchain-community>=0.4.2",
     "langchain-ollama>=1.1.0",
     "langgraph>=1.2.18",
+    "pgvector>=0.5.1",
     "psycopg[binary]>=3.3.8",
     "pwdlib[argon2]>=0.3.1",
     "pydantic-settings>=2.16.2",

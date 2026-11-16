@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pgvector.sqlalchemy import Vector
+
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
@@ -28,3 +30,12 @@ class Query(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False, index=True)
     user: Mapped[User] = relationship(back_populates="queries")
+
+class VectorDB(Base):
+    __tablename__ = 'vectordb'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, index=True)
+    content: Mapped[str] = mapped_column(Text(), nullable=False)
+    source: Mapped[str] = mapped_column(Text(), nullable=False)
+    page: Mapped[int] = mapped_column(Integer(), nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(768), nullable=False)
