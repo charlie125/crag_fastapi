@@ -2,7 +2,7 @@
 
 A REST API for the **Capped Agentic CRAG** pipeline from my MSc dissertation, so that a fully local RAG system can be called by other services instead of only through a demo web page.
 
-Everything runs on local hardware: the LLM and embedding model are served by Ollama and the vector store is Chroma. No document or query is sent to a cloud API.
+Everything runs on local hardware: the LLM and embedding model are served by Ollama, the vector store is Chroma, and users and queries are stored in PostgreSQL. No document or query is sent to a cloud API.
 
 > **Work in progress.** See [Status](#status) for what is done and what is planned.
 
@@ -21,26 +21,28 @@ The dissertation exposed the pipeline through Django. This project rebuilds the 
 ## Status
 
 - [x] FastAPI app split into `users` and `query` routers
-- [x] Async SQLAlchemy with SQLite (`aiosqlite`) to store users, queries and responses
+- [x] Async SQLAlchemy with PostgreSQL (`psycopg` 3) to store users, queries and responses
+- [x] Schema migrations with Alembic
+- [x] PostgreSQL in Docker Compose for local development
 - [x] Pydantic request and response schemas with input validation
 - [x] Password hashing (Argon2) and JWT authentication
 - [x] User creation endpoint (`POST /api/users`)
 - [x] Users can only view and delete their own queries
 - [x] Run the CRAG pipeline in a worker thread so it does not block the event loop
 - [ ] Automated tests with pytest
-- [ ] PostgreSQL with pgvector in place of Chroma
-- [ ] Docker Compose for the API, database and Ollama
+- [ ] pgvector in place of Chroma
+- [ ] Run the API and Ollama in Docker Compose as well
 - [ ] CI with GitHub Actions
 
 ## Tech stack
 
-Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph · LangChain · Ollama · Chroma · uv
+Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · PostgreSQL · Alembic · Docker Compose · LangGraph · LangChain · Ollama · Chroma · uv
 
 ## Project structure
 
 ```
 .
-├── main.py           # FastAPI app, lifespan (creates tables), router registration
+├── main.py           # FastAPI app, lifespan (disposes the engine), router registration
 ├── router/
 │   ├── query.py      # /api/queries: run, list and delete queries
 │   └── user.py       # /api/users: sign up, log in, list users, a user's own queries
@@ -49,6 +51,9 @@ Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · SQLite · LangGraph 
 ├── schemas.py        # Pydantic request/response models
 ├── models.py         # SQLAlchemy models: User, Query
 ├── database.py       # Async engine and session dependency
+├── alembic/          # Migration environment and versioned migrations
+├── alembic.ini       # Alembic configuration (the database URL comes from config.py)
+├── docker-compose.yaml  # PostgreSQL for local development
 ├── capped_crag.py    # LangGraph Capped Agentic CRAG pipeline
 ├── vector_store.py   # PDF loading, chunking, Chroma vector store and search
 └── data/             # Synthetic GDPR compliance policy used as the corpus
@@ -70,7 +75,7 @@ Interactive documentation is available at `/docs` once the server is running. Us
 
 ## Getting started
 
-**Prerequisites:** Python 3.14, [uv](https://docs.astral.sh/uv/) and [Ollama](https://ollama.com/).
+**Prerequisites:** Python 3.14, [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com/) and [Docker](https://docs.docker.com/get-docker/).
 
 ```bash
 # 1. Pull the models
@@ -80,14 +85,44 @@ ollama pull nomic-embed-text
 # 2. Install dependencies
 uv sync
 
-# 3. Create a .env file with a secret key for signing tokens
-echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
+# 3. Create a .env file (read by both the app and Docker Compose)
+cat > .env <<EOF
+SECRET_KEY=$(openssl rand -hex 32)
+POSTGRES_USER=crag
+POSTGRES_PASSWORD=$(openssl rand -hex 16)
+POSTGRES_DB=crag
+POSTGRES_PORT=5433
+EOF
 
-# 4. Start the development server
+# 4. Start PostgreSQL
+docker compose up -d
+
+# 5. Create the tables
+uv run alembic upgrade head
+
+# 6. Start the development server
 uv run fastapi dev main.py
 ```
 
+PostgreSQL listens on port `5433` on the host so it does not clash with a local installation. `POSTGRES_HOST` defaults to `localhost`.
+
 Open <http://127.0.0.1:8000/docs> to try the endpoints. On the first query, the vector store is built from the PDF in `data/` and saved to `data/vector_db/`.
+
+### Database migrations
+
+The schema is managed by Alembic; the app does not create tables on startup.
+
+```bash
+# After changing models.py, generate a migration and review it before applying
+uv run alembic revision --autogenerate -m "describe the change"
+uv run alembic upgrade head
+
+# Show the current revision / check that models and database match
+uv run alembic current
+uv run alembic check
+```
+
+Autogenerate cannot detect renames (it emits a drop and a create), so always read the generated file.
 
 ### Example
 
@@ -116,5 +151,6 @@ Tokens expire after 30 minutes by default (`ACCESS_TOKEN_EXPIRED_MINUTES`).
 - The dissertation experiments used `llama3.1` (8B). This repository defaults to the smaller `llama3.2:1b` so it runs on lighter machines; change the model in `capped_crag.py`.
 - The corpus is a fully synthetic compliance policy. No real corporate or personal data is included.
 - `GET /api/users` and `GET /api/queries` are still public and expose every user's email and queries. They will be restricted before any deployment.
-- Tables are created at startup with `create_all`, which does not alter existing tables. There are no migrations yet, so after a model change, delete `crag.db` and restart.
+- Database data lives in the `pgdata` volume, which Docker Compose names `<project>_pgdata` (the project name defaults to the folder name, e.g. `crag-fastapi_pgdata`). It survives `docker compose down`; `docker compose down -v` deletes it.
+- `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` only take effect when the volume is first initialised. Changing them later requires recreating the volume.
 - Latency and quality figures from the dissertation do not carry over to this version and will be re-measured once the service layer is complete.
