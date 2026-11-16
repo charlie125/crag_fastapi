@@ -1,6 +1,5 @@
 import json
 import time
-import os
 
 # Local LLM
 from langchain_ollama import ChatOllama
