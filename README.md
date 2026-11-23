@@ -29,7 +29,7 @@ The dissertation exposed the pipeline through Django. This project rebuilds the 
 - [x] User creation endpoint (`POST /api/users`)
 - [x] Users can only view and delete their own queries
 - [x] Run the CRAG pipeline in a worker thread so it does not block the event loop
-- [ ] Automated tests with pytest
+- [x] Automated tests with pytest against a separate PostgreSQL test database
 - [x] pgvector in place of Chroma: chunks and embeddings live in PostgreSQL, searched by cosine distance
 - [ ] Run the API and Ollama in Docker Compose as well
 - [ ] CI with GitHub Actions
@@ -56,7 +56,11 @@ Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · PostgreSQL · Alembi
 ├── docker-compose.yaml  # PostgreSQL with pgvector for local development
 ├── capped_crag.py    # LangGraph Capped Agentic CRAG pipeline
 ├── vector_store.py   # PDF ingestion (split, embed, store) and pgvector similarity search
-└── data/             # Synthetic GDPR compliance policy used as the corpus
+├── data/             # Synthetic GDPR compliance policy used as the corpus
+└── test/
+    ├── conftest.py   # Test database, per-test rollback, test client and fixtures
+    ├── test_user.py  # Sign-up, user listing, reading a user's queries (incl. 403)
+    └── test_query.py # Creating, listing and deleting queries (incl. 404 for another user's query)
 ```
 
 ## API
@@ -126,6 +130,26 @@ uv run alembic check
 ```
 
 Autogenerate cannot detect renames (it emits a drop and a create), so always read the generated file.
+
+### Running tests
+
+The tests run against a separate database, `test_crag_db`, on the same PostgreSQL container. Create it once:
+
+```bash
+docker compose up -d
+docker compose exec crag_db sh -c 'createdb -U "$POSTGRES_USER" test_crag_db'
+```
+
+Then run:
+
+```bash
+uv run pytest
+```
+
+- `test/conftest.py` switches `POSTGRES_DB` to `test_crag_db` before the app is imported, so the tests never touch the development database. The other connection settings still come from `.env`.
+- Tables (and the `vector` extension) are created at the start of the test run and dropped at the end; no migration step is needed.
+- Each test runs inside a transaction that is rolled back afterwards, so tests do not affect each other.
+- The CRAG pipeline is replaced with a stub, so Ollama does not need to be running.
 
 ### Example
 
