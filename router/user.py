@@ -68,7 +68,7 @@ async def get_all_users(db:DbSession):
     return users
 
 
-@router.get("/{username}/queries", response_model=list[QueryResponse])
+@router.get("/{username}/queries", response_model=list[QueryResponse], status_code=status.HTTP_200_OK)
 async def get_user_queries(db: DbSession, user: CurrentUser, username: str):
 
     if user.username.lower() != username.lower():

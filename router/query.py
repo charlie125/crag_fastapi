@@ -21,11 +21,13 @@ async def create_query(query: QueryCreate, db:DbSession, current_user: CurrentUs
 
     return new_query
 
+
 @router.get("", response_model=list[QueryResponse], status_code=status.HTTP_200_OK)
 async def get_all_queries(db:DbSession):
     result = await db.execute(select(models.Query).options(selectinload(models.Query.user)))
     queries = result.scalars().all()
     return queries
+
 
 @router.delete("/{query_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_query(db: DbSession, query_id: int, current_user: CurrentUser):
