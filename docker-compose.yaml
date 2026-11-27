@@ -1,4 +1,41 @@
 services:
+  crag_fastapi:
+    build: .
+    image: charlie125/crag_fastapi:1.0
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - POSTGRES_HOST=crag_db
+      - POSTGRES_PORT=5432
+    depends_on:
+      crag_db:
+        condition: service_healthy
+      ollama_pull:
+        condition: service_completed_successfully
+
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama_llm:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list"]
+      interval: 3s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  ollama_pull:
+    image: ollama/ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["sh", "-c", "ollama pull llama3.2:1b && ollama pull nomic-embed-text"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+
   crag_db:
     image: pgvector/pgvector:pg17
     environment:
@@ -9,6 +46,13 @@ services:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_PORT}:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
 volumes:
   pgdata:
+  ollama_llm:
