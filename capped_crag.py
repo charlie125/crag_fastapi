@@ -1,5 +1,3 @@
-import json
-import time
 import os
 
 # Local LLM
@@ -15,9 +13,7 @@ from typing import TypedDict, Annotated, Sequence
 from typing import Literal
 from pydantic import BaseModel, Field
 from vector_store import vector_db_search
-from langgraph.checkpoint.memory import MemorySaver
 
-memory = MemorySaver()
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 # Original model in dissertation
@@ -27,7 +23,7 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 llm = ChatOllama(model="llama3.2:1b", temperature=0, base_url=OLLAMA_BASE_URL)
 
 
-def build_capped_graph(use_memory=True):
+def build_capped_graph():
     """Build (but don't invoke) the capped agentic CRAG graph."""
     global llm
 
@@ -221,10 +217,7 @@ def build_capped_graph(use_memory=True):
     workflow.add_edge("rewrite_question", "generate_query_or_respond")
     workflow.add_edge("give_up_msg", END)
 
-    if use_memory:
-        return workflow.compile(checkpointer=memory)
-    else:
-        return workflow.compile()
+    return workflow.compile()
 
 
 def capped_main(user_query):
@@ -232,7 +225,7 @@ def capped_main(user_query):
 
     config = {"recursion_limit": 1000}
 
-    graph = build_capped_graph(use_memory=False)
+    graph = build_capped_graph()
 
     result = graph.invoke(
         {"messages": [HumanMessage(content=user_query)], "rewrite_counts": 0},
@@ -243,84 +236,3 @@ def capped_main(user_query):
                    if isinstance(msg, AIMessage)][-1]
 
     return ai_response
-
-
-def capped_testing(user_query):
-    graph = build_capped_graph(use_memory=False)
-
-    config = {"recursion_limit": 1000}
-
-    result = graph.invoke(
-        {"messages": [HumanMessage(content=user_query)], "rewrite_counts": 0},
-        config,
-    )
-
-    ai_messages = [each.content for each in result["messages"]
-                   if isinstance(each, AIMessage)]
-    ai_response = ai_messages[-1] if ai_messages else ""
-
-    tool_messages = [each.content for each in result["messages"]
-                     if isinstance(each, ToolMessage)]
-    tool_message = tool_messages[-1] if tool_messages else ""
-
-    if tool_message:
-        try:
-            parsed_chunks = json.loads(tool_message)
-            retrieved_contexts = [item["chunk_context"]
-                                  for item in parsed_chunks]
-        except Exception:
-            retrieved_contexts = [tool_message]
-    else:
-        retrieved_contexts = []
-
-    data = {
-        "retrieved_contexts": retrieved_contexts,
-        "response": str(ai_response),
-        "_raw_messages": list(result["messages"]),
-    }
-    return data
-
-
-NODE_LABELS = {
-    "generate_query_or_respond": "Deciding whether to retrieve documents...",
-    "retrieve": "Retrieving relevant documents...",
-    "counts_check_point": "Checking rewrite count...",
-    "rewrite_question": "Rewriting the question...",
-    "generate_answer": "Generating answer...",
-    "give_up_msg": "Rewrite limit reached, preparing fallback response...",
-}
-
-FINAL_NODES = ("generate_query_or_respond", "generate_answer", "give_up_msg")
-
-
-def capped_stream(user_query, session_id):
-    """Generator for Django SSE view: yields {'type': 'thinking'|'token', ...}"""
-
-    config = {"recursion_limit": 1000,
-              "configurable": {"thread_id": session_id}}
-
-    graph = build_capped_graph()
-
-    stream = graph.stream(
-        {"messages": [HumanMessage(content=user_query)], "rewrite_counts": 0},
-        config,
-        stream_mode="messages",
-    )
-
-    seen_nodes = set()
-    for chunk, metadata in stream:
-        node = metadata.get("langgraph_node")
-
-        if node and node not in seen_nodes:
-            seen_nodes.add(node)
-            yield {"type": "thinking", "node": node, "label": NODE_LABELS.get(node, node)}
-
-        if node in FINAL_NODES and isinstance(chunk, AIMessage) and chunk.content:
-            if node == "give_up_msg":
-                words = chunk.content.split(" ")
-                for i, word in enumerate(words):
-                    space = " " if i < len(words) - 1 else ""
-                    yield {"type": "token", "text": word + space}
-                    time.sleep(0.03)
-            else:
-                yield {"type": "token", "text": chunk.content}
