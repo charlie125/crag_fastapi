@@ -11,8 +11,8 @@ services:
       - POSTGRES_HOST=crag_db
       - POSTGRES_PORT=5432
     depends_on:
-      crag_db:
-        condition: service_healthy
+      ingest_vector_db:
+        condition: service_completed_successfully
       ollama_pull:
         condition: service_completed_successfully
 
@@ -52,6 +52,33 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  migration_db:
+    image: charlie125/crag_fastapi:1.0
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=crag_db
+      - POSTGRES_PORT=5432
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      crag_db:
+        condition: service_healthy
+
+  ingest_vector_db:
+    image: charlie125/crag_fastapi:1.0
+    env_file:
+      - .env
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - POSTGRES_HOST=crag_db
+      - POSTGRES_PORT=5432
+    command: ["python", "vector_store.py"]
+    depends_on:
+      ollama_pull:
+        condition: service_completed_successfully
+      migration_db:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:

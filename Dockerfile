@@ -21,4 +21,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "alembic upgrade head && exec fastapi run /app/main.py --port 8080"]
+CMD ["fastapi", "run", "/app/main.py", "--port", "8080"]
