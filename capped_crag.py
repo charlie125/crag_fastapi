@@ -1,5 +1,6 @@
 import json
 import time
+import os
 
 # Local LLM
 from langchain_ollama import ChatOllama
@@ -17,12 +18,13 @@ from vector_store import vector_db_search
 from langgraph.checkpoint.memory import MemorySaver
 
 memory = MemorySaver()
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 # Original model in dissertation
 # llm = ChatOllama(model="llama3.1", temperature=0, base_url=OLLAMA_BASE_URL)
 
 # containerize model in Docker
-llm = ChatOllama(model="llama3.2:1b", temperature=0)
+llm = ChatOllama(model="llama3.2:1b", temperature=0, base_url=OLLAMA_BASE_URL)
 
 
 def build_capped_graph(use_memory=True):

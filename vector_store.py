@@ -14,7 +14,9 @@ from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session, sessionmaker
 from config import setting
 
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
+embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=OLLAMA_BASE_URL)
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
