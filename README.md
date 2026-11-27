@@ -32,7 +32,8 @@ The dissertation exposed the pipeline through Django. This project rebuilds the 
 - [x] Automated tests with pytest against a separate PostgreSQL test database
 - [x] pgvector in place of Chroma: chunks and embeddings live in PostgreSQL, searched by cosine distance
 - [x] One-command start with Docker Compose: API, Ollama, model download, migrations and document ingestion
-- [ ] CI with GitHub Actions
+- [x] API image published on Docker Hub (`charlie125/crag_fastapi:1.0`, linux/arm64)
+- [ ] CI with GitHub Actions to run the test suite on every push
 
 ## Tech stack
 
@@ -123,6 +124,8 @@ ollama (healthy) ──→ ollama_pull (exit 0) ────┘
 `docker compose ps -a` shows the one-shot services as `Exited (0)` when they have finished successfully. If one of them exits with a non-zero code, the API is not started; check it with `docker compose logs <service>`.
 
 After changing the code or the Dockerfile, keep `--build` so Compose rebuilds the image instead of reusing the old one.
+
+The API image is also published on Docker Hub as [`charlie125/crag_fastapi:1.0`](https://hub.docker.com/r/charlie125/crag_fastapi) (linux/arm64 only for now), but it still needs the database and Ollama from `docker-compose.yaml`.
 
 ### Option B: local development
 
@@ -215,7 +218,8 @@ Tokens expire after 30 minutes by default (`ACCESS_TOKEN_EXPIRED_MINUTES`).
 
 ## Notes
 
-- The dissertation experiments used `llama3.1` (8B). This repository defaults to the smaller `llama3.2:1b` so it runs on lighter machines. To change it, edit `capped_crag.py` and the `ollama_pull` command in `docker-compose.yaml`.- The corpus is a fully synthetic compliance policy. No real corporate or personal data is included.
+- The dissertation experiments used `llama3.1` (8B). This repository defaults to the smaller `llama3.2:1b` so it runs on lighter machines. To change it, edit `capped_crag.py` and the `ollama_pull` command in `docker-compose.yaml`.
+- The corpus is a fully synthetic compliance policy. No real corporate or personal data is included.
 - `GET /api/users` and `GET /api/queries` are still public and expose every user's email and queries. They will be restricted before any deployment.
 - Database data lives in the `pgdata` volume and downloaded models in `ollama_llm`. Docker Compose prefixes them with the project name, which defaults to the folder name (e.g. `crag-fastapi_pgdata`). Both survive `docker compose down`; `docker compose down -v` deletes them.
 - `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` only take effect when the volume is first initialised. Changing them later requires recreating the volume.
