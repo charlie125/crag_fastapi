@@ -31,7 +31,7 @@ The dissertation exposed the pipeline through Django. This project rebuilds the 
 - [x] Run the CRAG pipeline in a worker thread so it does not block the event loop
 - [x] Automated tests with pytest against a separate PostgreSQL test database
 - [x] pgvector in place of Chroma: chunks and embeddings live in PostgreSQL, searched by cosine distance
-- [ ] Run the API and Ollama in Docker Compose as well
+- [x] One-command start with Docker Compose: API, Ollama, model download, migrations and document ingestion
 - [ ] CI with GitHub Actions
 
 ## Tech stack
@@ -49,11 +49,13 @@ Python 3.14 · FastAPI · Pydantic · SQLAlchemy (async) · PostgreSQL · Alembi
 ├── auth.py           # Password hashing, JWT creation/verification, current-user dependency
 ├── config.py         # Settings loaded from environment variables / .env
 ├── schemas.py        # Pydantic request/response models
-├── models.py         # SQLAlchemy models: User, Query
+├── models.py         # SQLAlchemy models: User, Query, VectorDB (document chunks)
 ├── database.py       # Async engine and session dependency
 ├── alembic/          # Migration environment and versioned migrations
 ├── alembic.ini       # Alembic configuration (the database URL comes from config.py)
-├── docker-compose.yaml  # PostgreSQL with pgvector for local development
+├── Dockerfile        # API image built with uv
+├── .dockerignore     # Keeps .env, .venv and caches out of the image
+├── docker-compose.yaml  # PostgreSQL + pgvector, Ollama, and the API with its one-shot setup services
 ├── capped_crag.py    # LangGraph Capped Agentic CRAG pipeline
 ├── vector_store.py   # PDF ingestion (split, embed, store) and pgvector similarity search
 ├── data/             # Synthetic GDPR compliance policy used as the corpus
@@ -79,7 +81,52 @@ Interactive documentation is available at `/docs` once the server is running. Us
 
 ## Getting started
 
-**Prerequisites:** Python 3.14, [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com/) and [Docker](https://docs.docker.com/get-docker/).
+Both ways of running the project need a `.env` file in the project root. It is read by the app and by Docker Compose, and is never copied into the image.
+
+```bash
+cat > .env <<EOF
+SECRET_KEY=$(openssl rand -hex 32)
+POSTGRES_USER=crag
+POSTGRES_PASSWORD=$(openssl rand -hex 16)
+POSTGRES_DB=crag
+POSTGRES_PORT=5433
+EOF
+```
+
+### Option A: Docker Compose (one command)
+
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) only.
+
+```bash
+docker compose up -d --build
+```
+
+Open <http://localhost:8080/docs> once the API is up. The first start downloads about 1.6 GB of models, so it takes a few minutes; later starts reuse them.
+
+Compose starts the services in this order:
+
+```
+crag_db (healthy) ──→ migration_db (exit 0) ──┐
+                                              ├─→ ingest_vector_db (exit 0) ──→ crag_fastapi
+ollama (healthy) ──→ ollama_pull (exit 0) ────┘
+```
+
+| Service | Role |
+| --- | --- |
+| `crag_db` | PostgreSQL 17 with pgvector |
+| `ollama` | Ollama server for the LLM and embedding model |
+| `ollama_pull` | One-shot: pulls `llama3.2:1b` and `nomic-embed-text` |
+| `migration_db` | One-shot: `alembic upgrade head` |
+| `ingest_vector_db` | One-shot: loads the PDF into pgvector (safe to re-run) |
+| `crag_fastapi` | The API on port `8080` |
+
+`docker compose ps -a` shows the one-shot services as `Exited (0)` when they have finished successfully. If one of them exits with a non-zero code, the API is not started; check it with `docker compose logs <service>`.
+
+After changing the code or the Dockerfile, keep `--build` so Compose rebuilds the image instead of reusing the old one.
+
+### Option B: local development
+
+**Prerequisites:** Python 3.14, [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com/) and [Docker](https://docs.docker.com/get-docker/). The app runs on the host with hot reload; only PostgreSQL runs in Docker.
 
 ```bash
 # 1. Pull the models
@@ -89,31 +136,22 @@ ollama pull nomic-embed-text
 # 2. Install dependencies
 uv sync
 
-# 3. Create a .env file (read by both the app and Docker Compose)
-cat > .env <<EOF
-SECRET_KEY=$(openssl rand -hex 32)
-POSTGRES_USER=crag
-POSTGRES_PASSWORD=$(openssl rand -hex 16)
-POSTGRES_DB=crag
-POSTGRES_PORT=5433
-EOF
+# 3. Start PostgreSQL only
+docker compose up -d crag_db
 
-# 4. Start PostgreSQL
-docker compose up -d
-
-# 5. Create the tables (also enables the vector extension)
+# 4. Create the tables (also enables the vector extension)
 uv run alembic upgrade head
 
-# 6. Load the document into the vector store (Ollama must be running)
+# 5. Load the document into the vector store (Ollama must be running)
 uv run python vector_store.py
 
-# 7. Start the development server
+# 6. Start the development server
 uv run fastapi dev main.py
 ```
 
-PostgreSQL listens on port `5433` on the host so it does not clash with a local installation. `POSTGRES_HOST` defaults to `localhost`.
+PostgreSQL listens on port `5433` on the host so it does not clash with a local installation. `POSTGRES_HOST` defaults to `localhost` and `OLLAMA_BASE_URL` to `http://localhost:11434`; Docker Compose overrides both for the containers.
 
-Open <http://127.0.0.1:8000/docs> to try the endpoints. Step 6 only needs to run once per database. Run it again after changing the PDF, the chunk settings or the embedding model; it replaces that document's chunks, so re-running it does not create duplicates.
+Open <http://127.0.0.1:8000/docs> to try the endpoints. Step 5 only needs to run once per database. Run it again after changing the PDF, the chunk settings or the embedding model; it replaces that document's chunks, so re-running it does not create duplicates.
 
 ### Database migrations
 
@@ -136,7 +174,7 @@ Autogenerate cannot detect renames (it emits a drop and a create), so always rea
 The tests run against a separate database, `test_crag_db`, on the same PostgreSQL container. Create it once:
 
 ```bash
-docker compose up -d
+docker compose up -d crag_db
 docker compose exec crag_db sh -c 'createdb -U "$POSTGRES_USER" test_crag_db'
 ```
 
@@ -152,6 +190,8 @@ uv run pytest
 - The CRAG pipeline is replaced with a stub, so Ollama does not need to be running.
 
 ### Example
+
+These commands use port `8000` (Option B). With Option A, replace it with `8080`.
 
 ```bash
 # Create a user
@@ -175,9 +215,8 @@ Tokens expire after 30 minutes by default (`ACCESS_TOKEN_EXPIRED_MINUTES`).
 
 ## Notes
 
-- The dissertation experiments used `llama3.1` (8B). This repository defaults to the smaller `llama3.2:1b` so it runs on lighter machines; change the model in `capped_crag.py`.
-- The corpus is a fully synthetic compliance policy. No real corporate or personal data is included.
+- The dissertation experiments used `llama3.1` (8B). This repository defaults to the smaller `llama3.2:1b` so it runs on lighter machines. To change it, edit `capped_crag.py` and the `ollama_pull` command in `docker-compose.yaml`.- The corpus is a fully synthetic compliance policy. No real corporate or personal data is included.
 - `GET /api/users` and `GET /api/queries` are still public and expose every user's email and queries. They will be restricted before any deployment.
-- Database data lives in the `pgdata` volume, which Docker Compose names `<project>_pgdata` (the project name defaults to the folder name, e.g. `crag-fastapi_pgdata`). It survives `docker compose down`; `docker compose down -v` deletes it.
+- Database data lives in the `pgdata` volume and downloaded models in `ollama_llm`. Docker Compose prefixes them with the project name, which defaults to the folder name (e.g. `crag-fastapi_pgdata`). Both survive `docker compose down`; `docker compose down -v` deletes them.
 - `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` only take effect when the volume is first initialised. Changing them later requires recreating the volume.
 - Latency and quality figures from the dissertation do not carry over to this version and will be re-measured once the service layer is complete.
