@@ -7,10 +7,27 @@ on:
 jobs:
   crag-fastapi-ci-pipeline:
     runs-on: ubuntu-latest
+
+    services:
+      crag_db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_crag_db
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d test_crag_db"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 3
+          --health-start-period 10s
+
     env:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
-      POSTGRES_PORT: 5432
+      POSTGRES_PORT: "5432"
 
     steps:
       - uses: actions/checkout@v5
