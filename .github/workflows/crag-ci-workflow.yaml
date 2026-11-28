@@ -7,6 +7,10 @@ on:
 jobs:
   crag-fastapi-ci-pipeline:
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PORT: 5432
 
     steps:
       - uses: actions/checkout@v5
